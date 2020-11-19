@@ -1,13 +1,67 @@
 #! /bin/bash
 #By CODO CloudOpenDevOps
 #Time: 2019-06-26
+# Update by xiechengqi 2020/11/19
 #只支持CentOS7+
 
 
+function INFO() {
+echo -en "\033[32m [INFO] \033[0m" && echo -e "$@"  && echo -e `date +"%Y-%m-%d %H:%M:%S"`'  '"\033[32m $@ \033[0m" >>"$logStatusPath"
+}
+
+function INFOF() {
+echo -en "\033[32m [INFO] $@ \033[0m" && echo -en `date +"%Y-%m-%d %H:%M:%S"`'  '"\033[32m $@ \033[0m" >>"$logStatusPath"
+}
+
+function ERROR() {
+echo -e "\033[31m [ERROR] \033[0m" && echo -e "$@" && echo -e `date +"%Y-%m-%d %H:%M:%S"`'  '"\033[31m $@ \033[0m" >>"$logStatusPath"
+}
+
+function ERRORF() {
+echo -en "\033[31m [ERROR] $@ \033[0m" && echo -en `date +"%Y-%m-%d %H:%M:%S"`'  '"\033[31m $@ \033[0m" >>"$logStatusPath"
+}
+
+function WARN() {
+echo -en "\033[33m [WARNNING] \033[0m" && echo -e "$@" && echo -e `date +"%Y-%m-%d %H:%M:%S"`'  '"\033[32m $@ \033[0m" >>"$logStatusPath"
+
+}
+
+function WARNF() {
+echo -e "\033[33m [WARNNING] $@ \033[0m" && echo -e `date +"%Y-%m-%d %H:%M:%S"`'  '"\033[32m $@ \033[0m" >>"$logStatusPath"
+}
+
+
+function OK() {
+echo -e "\033[32m [ok] \033[0m" && echo -e "\033[32m [ok] \033[0m" >>"$logStatusPath"
+}
+
+function FAIL() {
+echo -e "\033[31m [fail] \033[0m" && echo -e "\033[31m [fail] \033[0m" >>"$logStatusPath"
+}
+
+function LOG() {
+echo -e "\033[32m `date +"%Y-%m-%d %H:%M:%S"` \033[0m"' '"\033[33m $@ \033[0m" >>"$logDetailPath"
+eval $@ &>>"$logDetailPath"
+}
+
+function startService() {
+name="$1"
+INFOF "start $name ......      "
+LOG systemctl start $name
+LOG systemctl enable $name
+LOG systemctl status $name
+[ $? -ne 0 ] && FAIL && exit 1 || OK
+}
+
+
+## environment variable
+export logStatusPath='/var/log/codoStatus.log'
+export logDetailPath='/var/log/codoDetail.log'
+
 usage() {
-    echo "请按如下格式执行"
-    echo "USAGE: bash $0 本机内网IP"
-    echo "USAGE: bash $0 10.10.10.12"
+    INFO "请按如下格式执行"
+    INFO "USAGE: bash $0 本机内网IP"
+    INFO "USAGE: bash $0 10.10.10.12"
     exit 1
 }
 
@@ -68,59 +122,74 @@ function check_ip() {
         FIELD3=$(echo $IP|cut -d. -f3)
         FIELD4=$(echo $IP|cut -d. -f4)
         if [ $FIELD1 -le 255 -a $FIELD2 -le 255 -a $FIELD3 -le 255 -a $FIELD4 -le 255 ]; then
-            echo "IP $IP available."
+            ERROR "IP $IP available."
         else
-            echo "IP $IP 校验失败,请确认拿下你的IP格式是不是合法的!"
+            ERROR "IP $IP 校验失败,请确认拿下你的IP格式是不是合法的!"
         fi
     else
-        echo "IP format error!"
+        ERROR "IP format error!"
     fi
 }
 
+function yum_install() {
+name="$1"
+INFOF 'install '"$name"'      ......'
+LOG yum install -y "$name"
+[ $? -eq 0 ] && OK || FAIL
+}
+
 function install_python3(){
-  echo -e "\033[32m [INFO]: Start install python3 \033[0m"
-  yum groupinstall Development tools -y
-  yum -y install zlib-devel
-  yum install -y python36-devel-3.6.3-7.el7.x86_64 openssl-devel libxslt-devel libxml2-devel libcurl-devel
-  cd /usr/local/src/
-  echo -e "\033[32m [INFO]: Start install python3 \033[0m"
-  echo -e "\033[32m [INFO]: python3下载时间根据实际网络为准,请耐心等待。\033[0m"
-  echo -e "\033[32m [INFO]: 这里并没有卡死，下载进度大小查看du -sh /usr/local/src/* \033[0m"
-  yum install -y wget
-  wget -q -c https://www.python.org/ftp/python/3.6.4/Python-3.6.4.tar.xz
-  tar xf  Python-3.6.4.tar.xz >/dev/null 2>&1 && cd Python-3.6.4
-  ./configure >/dev/null 2>&1
-  make >/dev/null 2>&1 && make install >/dev/null 2>&1
-  if [ $? == 0 ];then
-      echo -e "\033[32m [INFO]: python3 install success. \033[0m"
-  else
-      echo -e "\033[31m [ERROR]: python3 install faild \033[0m"
-      exit -1
-  fi
+INFO "Start install python3 ..."
+INFOF 'install Development tools      ......'
+LOG yum groupinstall Development tools -y
+[ $? -eq 0 ] && OK || FAIL
+yum_install zlib-devel
+yum_install python36-devel-3.6.3-7.el7.x86_64
+yum_install openssl-devel
+yum_install libxslt-devel
+yum_install libxml2-devel
+yum_install libcurl-devel
+cd /usr/local/src/
+INFO 'Start install python3'
+INFO 'python3下载时间根据实际网络为准,请耐心等待。'
+INFO '这里并没有卡死，下载进度大小查看du -sh /usr/local/src/*'
+yum_install wget
+wget -q -c https://www.python.org/ftp/python/3.6.4/Python-3.6.4.tar.xz
+tar xf  Python-3.6.4.tar.xz >/dev/null 2>&1 && cd Python-3.6.4
+./configure >/dev/null 2>&1
+make >/dev/null 2>&1 && make install >/dev/null 2>&1
+if [ $? == 0 ];then
+INFO 'python3 install success.'
+else
+ERROR 'python3 install faild.'
+exit -1
+fi
 }
 
 
 
 function install_docker_compose(){
-  echo -e "\033[32m [INFO]: Start install docker,docker-compose \033[0m"
-  yum install -y yum-utils device-mapper-persistent-data lvm2
-  yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-  yum-config-manager --enable docker-ce-edge
-  yum install -y docker-ce
-  ###启动
-  /bin/systemctl start docker.service
-  ### 开机自启
-  /bin/systemctl enable docker.service
-  #安装docker-compose编排工具
-  curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-  python3 get-pip.py
-  pip3 install docker-compose
-  if [ $? == 0 ];then
-      echo -e "\033[32m [INFO]: docker-compose install success. \033[0m"
-  else
-      echo -e "\033[31m [ERROR]: docker-compose install faild \033[0m"
-      exit -2
-  fi
+INFO 'Start install docker,docker-compose'
+yum_install yum-utils
+yum_install device-mapper-persistent-data
+yum_install lvm2
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum-config-manager --enable docker-ce-edge
+yum_install docker-ce
+###启动
+/bin/systemctl start docker.service
+### 开机自启
+/bin/systemctl enable docker.service
+#安装docker-compose编排工具
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python3 get-pip.py
+pip3 install docker-compose
+if [ $? == 0 ];then
+INFO 'docker-compose install success.'
+else
+ERROR 'docker-compose install faild.'
+exit -2
+fi
 }
 
 
@@ -128,8 +197,8 @@ function init_env(){
 #shell里面带EOFj居然不能空格/函数缩进也不行，会出语法错误
 echo -e "\033[32m [INFO]: 开始设置ENV环境变量 \033[0m"
 #创建环境变量
-sudo tee /opt/codo/env.sh<<-'EOF'
-#本机的IP地址
+# sudo tee /opt/codo/env.sh<<-'EOF'
+echo '#本机的IP地址
 export LOCALHOST_IP="10.10.10.12"
 
 #设置你的MYSQL密码
@@ -201,8 +270,8 @@ export DEFAULT_MQ_PWD=${MQ_PASSWORD}
 # 缓存
 export DEFAULT_REDIS_HOST='10.10.10.12'
 export DEFAULT_REDIS_PORT=6379
-export DEFAULT_REDIS_PASSWORD=${REDIS_PASSWORD}
-EOF
+export DEFAULT_REDIS_PASSWORD=${REDIS_PASSWORD}' >> /opt/codo/env.sh
+# EOF
 
 sed  -i "s#10.10.10.12#$LOCAL_IP#g" env.sh
 cat /opt/codo/env.sh
@@ -212,156 +281,150 @@ source /opt/codo/env.sh
 
 
 function download_settings(){
-  echo -e "\033[32m [INFO]: 开始下载个项目的配置文件 \033[0m"
-  #下载配置文件
-  #管理后端
-  curl -o codo-admin-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-admin/master/settings.py
-
-  #任务系统
-  curl -o codo-task-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-task/master/settings.py
-
-  #资产管理
-  curl -o codo-cmdb-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-cmdb/master/settings.py
-
-  #定时任务
-  curl -o codo-cron-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-cron/master/settings.py
-
-  #配置中心
-  curl -o kerrigan-settings.py  https://raw.githubusercontent.com/opendevops-cn/kerrigan/master/settings.py
-
-  #运维工具
-  curl -o codo-tools-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-tools/master/settings.py
-
-  #域名管理
-  curl -o codo-dns-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-dns/master/settings.py
+INFO '开始下载个项目的配置文件'
+#下载配置文件
+#管理后端
+curl -o codo-admin-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-admin/master/settings.py
+#任务系统
+curl -o codo-task-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-task/master/settings.py
+#资产管理
+curl -o codo-cmdb-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-cmdb/master/settings.py
+#定时任务
+curl -o codo-cron-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-cron/master/settings.py
+#配置中心
+curl -o kerrigan-settings.py  https://raw.githubusercontent.com/opendevops-cn/kerrigan/master/settings.py
+#运维工具
+curl -o codo-tools-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-tools/master/settings.py
+#域名管理
+curl -o codo-dns-settings.py https://raw.githubusercontent.com/opendevops-cn/codo-dns/master/settings.py
 }
 
 
 function update_settings(){
-  #修改settings配置
-  #管理后端
-  echo -e "\033[32m [INFO]: 开始修改各项目的配置文件 \033[0m"
-  source /opt/codo/env.sh
-  sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-admin-settings.py  
-  sed -i "s#token_secret = .*#token_secret = '${token_secret}'#g" codo-admin-settings.py     
-  DEFAULT_DB_DBNAME='codo_admin'
-  sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-admin-settings.py
-  sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-admin-settings.py
-  sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-admin-settings.py
-  sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-admin-settings.py
-  sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" codo-admin-settings.py
-  sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-admin-settings.py
-  sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-admin-settings.py
-  sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-admin-settings.py
-  sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-admin-settings.py
-  sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" codo-admin-settings.py
-  sed -i "s#DEFAULT_REDIS_HOST = .*#DEFAULT_REDIS_HOST = os.getenv('DEFAULT_REDIS_HOST', '${DEFAULT_REDIS_HOST}')#g" codo-admin-settings.py
-  sed -i "s#DEFAULT_REDIS_PORT = .*#DEFAULT_REDIS_PORT = os.getenv('DEFAULT_REDIS_PORT', '${DEFAULT_REDIS_PORT}')#g" codo-admin-settings.py
-  sed -i "s#DEFAULT_REDIS_PASSWORD = .*#DEFAULT_REDIS_PASSWORD = os.getenv('DEFAULT_REDIS_PASSWORD', '${DEFAULT_REDIS_PASSWORD}')#g" codo-admin-settings.py
+#修改settings配置
+#管理后端
+INFO '开始修改各项目的配置文件'
+source /opt/codo/env.sh
+sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-admin-settings.py  
+sed -i "s#token_secret = .*#token_secret = '${token_secret}'#g" codo-admin-settings.py     
+DEFAULT_DB_DBNAME='codo_admin'
+sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-admin-settings.py
+sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-admin-settings.py
+sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-admin-settings.py
+sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-admin-settings.py
+sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" codo-admin-settings.py
+sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-admin-settings.py
+sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-admin-settings.py
+sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-admin-settings.py
+sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-admin-settings.py
+sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" codo-admin-settings.py
+sed -i "s#DEFAULT_REDIS_HOST = .*#DEFAULT_REDIS_HOST = os.getenv('DEFAULT_REDIS_HOST', '${DEFAULT_REDIS_HOST}')#g" codo-admin-settings.py
+sed -i "s#DEFAULT_REDIS_PORT = .*#DEFAULT_REDIS_PORT = os.getenv('DEFAULT_REDIS_PORT', '${DEFAULT_REDIS_PORT}')#g" codo-admin-settings.py
+sed -i "s#DEFAULT_REDIS_PASSWORD = .*#DEFAULT_REDIS_PASSWORD = os.getenv('DEFAULT_REDIS_PASSWORD', '${DEFAULT_REDIS_PASSWORD}')#g" codo-admin-settings.py
 
-  #任务系统
-  TASK_DB_DBNAME='codo_task' 
-  sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-task-settings.py
-  sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${TASK_DB_DBNAME}')#g" codo-task-settings.py
-  sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-task-settings.py
-  sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-task-settings.py
-  sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-task-settings.py
-  sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-task-settings.py
-  sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${TASK_DB_DBNAME}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_REDIS_HOST = .*#DEFAULT_REDIS_HOST = os.getenv('DEFAULT_REDIS_HOST', '${DEFAULT_REDIS_HOST}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_REDIS_PORT = .*#DEFAULT_REDIS_PORT = os.getenv('DEFAULT_REDIS_PORT', '${DEFAULT_REDIS_PORT}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_REDIS_PASSWORD = .*#DEFAULT_REDIS_PASSWORD = os.getenv('DEFAULT_REDIS_PASSWORD', '${DEFAULT_REDIS_PASSWORD}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_MQ_ADDR = .*#DEFAULT_MQ_ADDR = os.getenv('DEFAULT_MQ_ADDR', '${DEFAULT_MQ_ADDR}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_MQ_USER = .*#DEFAULT_MQ_USER = os.getenv('DEFAULT_MQ_USER', '${DEFAULT_MQ_USER}')#g" codo-task-settings.py
-  sed -i "s#DEFAULT_MQ_PWD = .*#DEFAULT_MQ_PWD = os.getenv('DEFAULT_MQ_PWD', '${DEFAULT_MQ_PWD}')#g" codo-task-settings.py
+#任务系统
+TASK_DB_DBNAME='codo_task' 
+sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-task-settings.py
+sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${TASK_DB_DBNAME}')#g" codo-task-settings.py
+sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-task-settings.py
+sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-task-settings.py
+sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-task-settings.py
+sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-task-settings.py
+sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${TASK_DB_DBNAME}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_REDIS_HOST = .*#DEFAULT_REDIS_HOST = os.getenv('DEFAULT_REDIS_HOST', '${DEFAULT_REDIS_HOST}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_REDIS_PORT = .*#DEFAULT_REDIS_PORT = os.getenv('DEFAULT_REDIS_PORT', '${DEFAULT_REDIS_PORT}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_REDIS_PASSWORD = .*#DEFAULT_REDIS_PASSWORD = os.getenv('DEFAULT_REDIS_PASSWORD', '${DEFAULT_REDIS_PASSWORD}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_MQ_ADDR = .*#DEFAULT_MQ_ADDR = os.getenv('DEFAULT_MQ_ADDR', '${DEFAULT_MQ_ADDR}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_MQ_USER = .*#DEFAULT_MQ_USER = os.getenv('DEFAULT_MQ_USER', '${DEFAULT_MQ_USER}')#g" codo-task-settings.py
+sed -i "s#DEFAULT_MQ_PWD = .*#DEFAULT_MQ_PWD = os.getenv('DEFAULT_MQ_PWD', '${DEFAULT_MQ_PWD}')#g" codo-task-settings.py
 
-  #资产管理
-  CMDB_DB_DBNAME='codo_cmdb' 
-  sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-cmdb-settings.py
-  sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-cmdb-settings.py
-  sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-cmdb-settings.py
-  sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-cmdb-settings.py
-  sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-cmdb-settings.py
-  sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${CMDB_DB_DBNAME}')#g" codo-cmdb-settings.py
-  sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-cmdb-settings.py
-  sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-cmdb-settings.py
-  sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-cmdb-settings.py
-  sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-cmdb-settings.py
-  sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${CMDB_DB_DBNAME}')#g" codo-cmdb-settings.py
-  sed -i "s#DEFAULT_REDIS_HOST = .*#DEFAULT_REDIS_HOST = os.getenv('DEFAULT_REDIS_HOST', '${DEFAULT_REDIS_HOST}')#g" codo-cmdb-settings.py
-  sed -i "s#DEFAULT_REDIS_PORT = .*#DEFAULT_REDIS_PORT = os.getenv('DEFAULT_REDIS_PORT', '${DEFAULT_REDIS_PORT}')#g" codo-cmdb-settings.py
-  sed -i "s#DEFAULT_REDIS_PASSWORD = .*#DEFAULT_REDIS_PASSWORD = os.getenv('DEFAULT_REDIS_PASSWORD', '${DEFAULT_REDIS_PASSWORD}')#g" codo-cmdb-settings.py
-  # 同步TAG树
-  sed -i "s#CODO_TASK_DB_HOST = .*#CODO_TASK_DB_HOST = os.getenv('CODO_TASK_DB_HOST', '${DEFAULT_DB_DBHOST}')#g" codo-cmdb-settings.py
-  sed -i "s#CODO_TASK_DB_PORT = .*#CODO_TASK_DB_PORT = os.getenv('CODO_TASK_DB_PORT', '${DEFAULT_DB_DBPORT}')#g" codo-cmdb-settings.py
-  sed -i "s#CODO_TASK_DB_USER = .*#CODO_TASK_DB_USER = os.getenv('CODO_TASK_DB_USER', '${DEFAULT_DB_DBUSER}')#g" codo-cmdb-settings.py
-  sed -i "s#CODO_TASK_DB_PWD = .*#CODO_TASK_DB_PWD = os.getenv('CODO_TASK_DB_PWD', '${DEFAULT_DB_DBPWD}')#g" codo-cmdb-settings.py
-  sed -i "s#CODO_TASK_DB_DBNAME = .*#CODO_TASK_DB_DBNAME = os.getenv('CODO_TASK_DB_DBNAME', '${TASK_DB_DBNAME}')#g" codo-cmdb-settings.py
+#资产管理
+CMDB_DB_DBNAME='codo_cmdb' 
+sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-cmdb-settings.py
+sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-cmdb-settings.py
+sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-cmdb-settings.py
+sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-cmdb-settings.py
+sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-cmdb-settings.py
+sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${CMDB_DB_DBNAME}')#g" codo-cmdb-settings.py
+sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-cmdb-settings.py
+sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-cmdb-settings.py
+sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-cmdb-settings.py
+sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-cmdb-settings.py
+sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${CMDB_DB_DBNAME}')#g" codo-cmdb-settings.py
+sed -i "s#DEFAULT_REDIS_HOST = .*#DEFAULT_REDIS_HOST = os.getenv('DEFAULT_REDIS_HOST', '${DEFAULT_REDIS_HOST}')#g" codo-cmdb-settings.py
+sed -i "s#DEFAULT_REDIS_PORT = .*#DEFAULT_REDIS_PORT = os.getenv('DEFAULT_REDIS_PORT', '${DEFAULT_REDIS_PORT}')#g" codo-cmdb-settings.py
+sed -i "s#DEFAULT_REDIS_PASSWORD = .*#DEFAULT_REDIS_PASSWORD = os.getenv('DEFAULT_REDIS_PASSWORD', '${DEFAULT_REDIS_PASSWORD}')#g" codo-cmdb-settings.py
+# 同步TAG树
+sed -i "s#CODO_TASK_DB_HOST = .*#CODO_TASK_DB_HOST = os.getenv('CODO_TASK_DB_HOST', '${DEFAULT_DB_DBHOST}')#g" codo-cmdb-settings.py
+sed -i "s#CODO_TASK_DB_PORT = .*#CODO_TASK_DB_PORT = os.getenv('CODO_TASK_DB_PORT', '${DEFAULT_DB_DBPORT}')#g" codo-cmdb-settings.py
+sed -i "s#CODO_TASK_DB_USER = .*#CODO_TASK_DB_USER = os.getenv('CODO_TASK_DB_USER', '${DEFAULT_DB_DBUSER}')#g" codo-cmdb-settings.py
+sed -i "s#CODO_TASK_DB_PWD = .*#CODO_TASK_DB_PWD = os.getenv('CODO_TASK_DB_PWD', '${DEFAULT_DB_DBPWD}')#g" codo-cmdb-settings.py
+sed -i "s#CODO_TASK_DB_DBNAME = .*#CODO_TASK_DB_DBNAME = os.getenv('CODO_TASK_DB_DBNAME', '${TASK_DB_DBNAME}')#g" codo-cmdb-settings.py
 
-  #定时任务
-  CRON_DB_DBNAME='codo_cron' 
-  sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-cron-settings.py
-  sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-cron-settings.py
-  sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-cron-settings.py
-  sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-cron-settings.py
-  sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-cron-settings.py
-  sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${CRON_DB_DBNAME}')#g" codo-cron-settings.py
-  sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-cron-settings.py
-  sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-cron-settings.py
-  sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-cron-settings.py
-  sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-cron-settings.py
-  sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${CRON_DB_DBNAME}')#g" codo-cron-settings.py
+#定时任务
+CRON_DB_DBNAME='codo_cron' 
+sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-cron-settings.py
+sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-cron-settings.py
+sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-cron-settings.py
+sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-cron-settings.py
+sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-cron-settings.py
+sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${CRON_DB_DBNAME}')#g" codo-cron-settings.py
+sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-cron-settings.py
+sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-cron-settings.py
+sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-cron-settings.py
+sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-cron-settings.py
+sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${CRON_DB_DBNAME}')#g" codo-cron-settings.py
 
-  #配置中心
-  sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" kerrigan-settings.py 
-  DEFAULT_DB_DBNAME='codo_kerrigan'
-  sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" kerrigan-settings.py
-  sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" kerrigan-settings.py
-  sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" kerrigan-settings.py
-  sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" kerrigan-settings.py
-  sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" kerrigan-settings.py
-  sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" kerrigan-settings.py
-  sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" kerrigan-settings.py
-  sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" kerrigan-settings.py
-  sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" kerrigan-settings.py
-  sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" kerrigan-settings.py
+#配置中心
+sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" kerrigan-settings.py 
+DEFAULT_DB_DBNAME='codo_kerrigan'
+sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" kerrigan-settings.py
+sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" kerrigan-settings.py
+sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" kerrigan-settings.py
+sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" kerrigan-settings.py
+sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" kerrigan-settings.py
+sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" kerrigan-settings.py
+sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" kerrigan-settings.py
+sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" kerrigan-settings.py
+sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" kerrigan-settings.py
+sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" kerrigan-settings.py
 
-  #运维工具
-  sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-tools-settings.py 
-  DEFAULT_DB_DBNAME='codo_tools'
-  sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-tools-settings.py
-  sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-tools-settings.py
-  sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-tools-settings.py
-  sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-tools-settings.py
-  sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" codo-tools-settings.py
-  sed -i "s#DEFAULT_REDIS_HOST = .*#DEFAULT_REDIS_HOST = os.getenv('DEFAULT_REDIS_HOST', '${DEFAULT_REDIS_HOST}')#g" codo-tools-settings.py
-  sed -i "s#DEFAULT_REDIS_PORT = .*#DEFAULT_REDIS_PORT = os.getenv('DEFAULT_REDIS_PORT', '${DEFAULT_REDIS_PORT}')#g" codo-tools-settings.py
-  sed -i "s#DEFAULT_REDIS_PASSWORD = .*#DEFAULT_REDIS_PASSWORD = os.getenv('DEFAULT_REDIS_PASSWORD', '${DEFAULT_REDIS_PASSWORD}')#g" codo-tools-settings.py
+#运维工具
+sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-tools-settings.py 
+DEFAULT_DB_DBNAME='codo_tools'
+sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-tools-settings.py
+sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-tools-settings.py
+sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-tools-settings.py
+sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-tools-settings.py
+sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${DEFAULT_DB_DBNAME}')#g" codo-tools-settings.py
+sed -i "s#DEFAULT_REDIS_HOST = .*#DEFAULT_REDIS_HOST = os.getenv('DEFAULT_REDIS_HOST', '${DEFAULT_REDIS_HOST}')#g" codo-tools-settings.py
+sed -i "s#DEFAULT_REDIS_PORT = .*#DEFAULT_REDIS_PORT = os.getenv('DEFAULT_REDIS_PORT', '${DEFAULT_REDIS_PORT}')#g" codo-tools-settings.py
+sed -i "s#DEFAULT_REDIS_PASSWORD = .*#DEFAULT_REDIS_PASSWORD = os.getenv('DEFAULT_REDIS_PASSWORD', '${DEFAULT_REDIS_PASSWORD}')#g" codo-tools-settings.py
 
-  #域名管理
-  CRON_DB_DBNAME='codo_dns' 
-  sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-dns-settings.py
-  sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-dns-settings.py
-  sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-dns-settings.py
-  sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-dns-settings.py
-  sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-dns-settings.py
-  sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${CRON_DB_DBNAME}')#g" codo-dns-settings.py
-  sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-dns-settings.py
-  sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-dns-settings.py
-  sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-dns-settings.py
-  sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-dns-settings.py
-  sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${CRON_DB_DBNAME}')#g" codo-dns-settings.py
+#域名管理
+CRON_DB_DBNAME='codo_dns' 
+sed -i "s#cookie_secret = .*#cookie_secret = '${cookie_secret}'#g" codo-dns-settings.py
+sed -i "s#DEFAULT_DB_DBHOST = .*#DEFAULT_DB_DBHOST = os.getenv('DEFAULT_DB_DBHOST', '${DEFAULT_DB_DBHOST}')#g" codo-dns-settings.py
+sed -i "s#DEFAULT_DB_DBPORT = .*#DEFAULT_DB_DBPORT = os.getenv('DEFAULT_DB_DBPORT', '${DEFAULT_DB_DBPORT}')#g" codo-dns-settings.py
+sed -i "s#DEFAULT_DB_DBUSER = .*#DEFAULT_DB_DBUSER = os.getenv('DEFAULT_DB_DBUSER', '${DEFAULT_DB_DBUSER}')#g" codo-dns-settings.py
+sed -i "s#DEFAULT_DB_DBPWD = .*#DEFAULT_DB_DBPWD = os.getenv('DEFAULT_DB_DBPWD', '${DEFAULT_DB_DBPWD}')#g" codo-dns-settings.py
+sed -i "s#DEFAULT_DB_DBNAME = .*#DEFAULT_DB_DBNAME = os.getenv('DEFAULT_DB_DBNAME', '${CRON_DB_DBNAME}')#g" codo-dns-settings.py
+sed -i "s#READONLY_DB_DBHOST = .*#READONLY_DB_DBHOST = os.getenv('READONLY_DB_DBHOST', '${READONLY_DB_DBHOST}')#g" codo-dns-settings.py
+sed -i "s#READONLY_DB_DBPORT = .*#READONLY_DB_DBPORT = os.getenv('READONLY_DB_DBPORT', '${READONLY_DB_DBPORT}')#g" codo-dns-settings.py
+sed -i "s#READONLY_DB_DBUSER = .*#READONLY_DB_DBUSER = os.getenv('READONLY_DB_DBUSER', '${READONLY_DB_DBUSER}')#g" codo-dns-settings.py
+sed -i "s#READONLY_DB_DBPWD = .*#READONLY_DB_DBPWD = os.getenv('READONLY_DB_DBPWD', '${READONLY_DB_DBPWD}')#g" codo-dns-settings.py
+sed -i "s#READONLY_DB_DBNAME = .*#READONLY_DB_DBNAME = os.getenv('READONLY_DB_DBNAME', '${CRON_DB_DBNAME}')#g" codo-dns-settings.py
 
 }
 
 
 function mysql_database_file(){
-      #数据库建库文件
-echo -e "\033[32m [INFO]: 准备下创库语句，后面要用到 \033[0m"
+#数据库建库文件
+INFO '准备下创库语句，后面要用到'
 sudo tee data.sql <<-'EOF'
 create database codo_admin default character set utf8mb4 collate utf8mb4_unicode_ci;
 create database codo_task default character set utf8mb4 collate utf8mb4_unicode_ci;
@@ -376,7 +439,7 @@ EOF
 
 function docker_compose_file(){
 #docker-compose
-echo -e "\033[32m [INFO]: 准备多项目docker-compose文件 \033[0m"
+INFO '准备多项目docker-compose文件'
 source /opt/codo/env.sh
 cd /opt/codo/
 sudo tee docker-compose.yml <<-'EOF'
@@ -516,65 +579,88 @@ EOF
 }
 
 function docker_compose_up(){
-  echo -e "\033[32m [INFO]: docker-compose同时启动多项目 \033[0m"
-  source /opt/codo/env.sh
-  cd /opt/codo/
-  exist_codo_docker_num=`docker ps -a |grep -E "codo-admin|codo-tools|codo-cmdb|codo-dns|codo-task|kerrigan" | wc -l`
-
-  if [[ ${exist_codo_docker_num} -gt 0 ]]; then
-    docker-compose down ; docker-compose up -d
-  else
-    cd /opt/codo/
-    docker-compose up -d
-    if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: DockerCompose启动完成. \033[0m"; else echo -e "\033[31m [ERROR]: DockerCompose启动失败 \033[0m" && exit -6; fi
-  fi
+INFO 'docker-compose同时启动多项目'
+source /opt/codo/env.sh
+cd /opt/codo/
+exist_codo_docker_num=`docker ps -a |grep -E "codo-admin|codo-tools|codo-cmdb|codo-dns|codo-task|kerrigan" | wc -l`
+if [[ ${exist_codo_docker_num} -gt 0 ]]; then
+docker-compose down ; docker-compose up -d
+else
+cd /opt/codo/
+docker-compose up -d
+if [ $? -eq 0 ];
+then
+INFO 'DockerCompose启动完成.'
+else
+ERROR 'DockerCompose启动失败.' && exit -6
+fi
+fi
 }
 
 function init_mysql(){
-  echo -e "\033[32m [INFO]: 开始初始化各项目的数据之前需要清理目录数据 \033[0m"
-  rm -rf /data/mysql /data/mysql_conf
-  
-  echo -e "\033[32m [INFO]: 开始初始化各项目的数据 \033[0m"
+INFO '开始初始化各项目的数据之前需要清理目录数据'
+rm -rf /data/mysql /data/mysql_conf
+INFO '开始初始化各项目的数据'
+#初始化数据库（注：由于上一步操作同一时间启动复数容器，在执行以下命令时可能会提示无法连接mysql，可稍等片刻再尝试）
+INFO'这里请耐心等待30s，等待MySQL启动成功，不然会导致连不上数据库'
+sleep 30s
+iptables -F
 
-  #初始化数据库（注：由于上一步操作同一时间启动复数容器，在执行以下命令时可能会提示无法连接mysql，可稍等片刻再尝试）
-  echo -e "\033[32m [INFO]: 这里请耐心等待30s，等待MySQL启动成功，不然会导致连不上数据库 \033[0m"
-  sleep 30s
-  iptables -F
-  # 创建数据库
-  docker exec -it codo_mysql_1 bash -c "mysql -uroot -p${MYSQL_PASSWORD} < /docker-entrypoint-initdb.d/data.sql"
-  # 创建表
-  exist_codo_docker_num=`docker ps -a |grep -E "codo-admin|codo-tools|codo-cmdb|codo-dns|codo-task|kerrigan" | wc -l`
-  if [[ ${exist_codo_docker_num} -ne 6 ]]; then
-    echo -e "\033[31m [ERROR]: 没有发现COOD项目Docker服务是启动的，请检查是否启动成功了 \033[0m"
-  fi
-  docker exec -ti codo_do_mg_1  /usr/local/bin/python3 /var/www/codo-admin/db_sync.py
-  if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: codo-admin 数据库初始化完成. \033[0m"; else echo -e "\033[31m [ERROR]: codo-admin 数据库初始化失败 \033[0m" && exit -6; fi
-  docker exec -ti codo_task_1  /usr/local/bin/python3 /var/www/codo-task/db_sync.py
-  if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: codo-task 数据库初始化完成. \033[0m"; else echo -e "\033[31m [ERROR]: codo-task 数据库初始化失败 \033[0m" && exit -6; fi
-  docker exec -ti codo_cmdb_1 /usr/local/bin/python3 /var/www/codo-cmdb/db_sync.py
-  if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: codo-cmdb 数据库初始化完成. \033[0m"; else echo -e "\033[31m [ERROR]: codo-admin 数据库初始化失败 \033[0m" && exit -6; fi
-  docker exec -ti codo_cron_1  /usr/local/bin/python3 /var/www/codo-cron/db_sync.py
-  if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: codo-cron 数据库初始化完成. \033[0m"; else echo -e "\033[31m [ERROR]: codo-cron 数据库初始化失败 \033[0m" && exit -6; fi
-  docker exec -ti  codo_kerrigan_1  /usr/local/bin/python3 /var/www/kerrigan/db_sync.py
-  if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: codo-kerrigan 数据库初始化完成. \033[0m"; else echo -e "\033[31m [ERROR]: codo-kerrigan 数据库初始化失败 \033[0m" && exit -6; fi
-  docker exec -ti  codo_tools_1  /usr/local/bin/python3 /var/www/codo-tools/db_sync.py 
-  if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: codo-tools 数据库初始化完成. \033[0m"; else echo -e "\033[31m [ERROR]: codo-tools 数据库初始化失败 \033[0m" && exit -6; fi
-  docker exec -ti codo_dns_1 /usr/local/bin/python3 /var/www/codo-dns/db_sync.py
-  if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: codo-dns 数据库初始化完成. \033[0m"; else echo -e "\033[31m [ERROR]: codo-dns 数据库初始化失败 \033[0m" && exit -6; fi
-  cd /opt/codo/
-  source /opt/codo/env.sh
-  curl -O https://raw.githubusercontent.com/opendevops-cn/codo-admin/master/doc/codo_admin_beta0.3.sql
-  [ ! -f /usr/bin/mysql ] && yum install mysql -y
-  check_admin_user_num=`mysql -h${DEFAULT_DB_DBHOST} -u${DEFAULT_DB_DBUSER} -p${MYSQL_PASSWORD} codo_admin -e "select username from mg_users where username='admin';" | wc -l`
-  if [ ${check_admin_user_num} -eq 0 ]; then mysql -h${DEFAULT_DB_DBHOST} -u${DEFAULT_DB_DBUSER} -p${MYSQL_PASSWORD} codo_admin < ./codo_admin_beta0.3.sql; else echo "初始化用户已存在" ; fi
-  if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: 导入codo-admin用户权限数据完成. \033[0m"; else echo -e "\033[31m [ERROR]: 导入codo-admin用户权限数据完成失败 \033[0m" && exit -6; fi
+# 创建数据库
+docker exec -ti codo_mysql_1 bash -c "mysql -uroot -p${MYSQL_PASSWORD} < /docker-entrypoint-initdb.d/data.sql"
+# 创建表
+exist_codo_docker_num=`docker ps -a |grep -E "codo-admin|codo-tools|codo-cmdb|codo-dns|codo-task|kerrigan" | wc -l`
+if [[ ${exist_codo_docker_num} -ne 6 ]]; then
+ERROR '没有发现COOD项目Docker服务是启动的，请检查是否启动成功了'
+fi
+
+INFOF 'codo-admin 数据库初始化      ......'
+docker exec -ti codo_do_mg_1  /usr/local/bin/python3 /var/www/codo-admin/db_sync.py
+[ $? -eq 0 ] && OK || FAIL
+
+INFOF 'codo-admin 数据库初始化      ......'
+docker exec -it codo_task_1  /usr/local/bin/python3 /var/www/codo-task/db_sync.py
+[ $? -eq 0 ] && OK || FAIL
+
+INFOF 'codo-admin 数据库初始化      ......'
+docker exec -ti codo_cmdb_1 /usr/local/bin/python3 /var/www/codo-cmdb/db_sync.py
+[ $? -eq 0 ] && OK || FAIL
+
+INFOF 'codo-admin 数据库初始化      ......'
+docker exec -ti codo_cron_1  /usr/local/bin/python3 /var/www/codo-cron/db_sync.py
+[ $? -eq 0 ] && OK || FAIL
+
+INFOF 'codo-kerrigan 数据库初始化      ......'
+docker exec -ti  codo_kerrigan_1  /usr/local/bin/python3 /var/www/kerrigan/db_sync.py
+[ $? -eq 0 ] && OK || FAIL
+
+INFOF 'codo_tools 数据库初始化      ......'
+docker exec -ti  codo_tools_1  /usr/local/bin/python3 /var/www/codo-tools/db_sync.py 
+[ $? -eq 0 ] && OK || FAIL
+
+INFOF 'codo_dns 数据库初始化      ......'
+docker exec -ti codo_dns_1 /usr/local/bin/python3 /var/www/codo-dns/db_sync.py
+[ $? -eq 0 ] && OK || FAIL
+
+cd /opt/codo/
+source /opt/codo/env.sh
+curl -O https://raw.githubusercontent.com/opendevops-cn/codo-admin/master/doc/codo_admin_beta0.3.sql
+hash mysql && yum_install mysql
+check_admin_user_num=`mysql -h${DEFAULT_DB_DBHOST} -u${DEFAULT_DB_DBUSER} -p${MYSQL_PASSWORD} codo_admin -e "select username from mg_users where username='admin';" | wc -l`
+if [ ${check_admin_user_num} -eq 0 ]
+then mysql -h${DEFAULT_DB_DBHOST} -u${DEFAULT_DB_DBUSER} -p${MYSQL_PASSWORD} codo_admin < ./codo_admin_beta0.3.sql
+else
+INFO "初始化用户已存在"
+fi
+
+if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: 导入codo-admin用户权限数据完成. \033[0m"; else echo -e "\033[31m [ERROR]: 导入codo-admin用户权限数据完成失败 \033[0m" && exit -6; fi
 }
 
 
 function install_dnsmasq(){
-echo -e "\033[32m [INFO]: 部署dnsmasql内部通信服务 \033[0m"
+INFO '部署dnsmasql内部通信服务'
 source /opt/codo/env.sh
-yum install dnsmasq -y
+yum_install dnsmasq
 # 设置上游DNS，毕竟你的Dns只是个代理
 sudo tee /etc/resolv.dnsmasq <<-'EOF'
 nameserver 114.114.114.114
@@ -596,57 +682,42 @@ EOF
 
 #添加配置
 #注意：
- # 刚装完DNS可以先不用改本机的DNS，有一部分人反应Docker Build时候会报连不上mirrors，装不了依赖。
- # 部署到API网关的时候，需要将本机DNS改成自己，不然没办法访问以上mg.cron,cmdb等内网域名
+# 刚装完DNS可以先不用改本机的DNS，有一部分人反应Docker Build时候会报连不上mirrors，装不了依赖。
+# 部署到API网关的时候，需要将本机DNS改成自己，不然没办法访问以上mg.cron,cmdb等内网域名
 echo "nameserver $LOCALHOST_IP" > /etc/resolv.conf   
-echo "resolv-file=/etc/resolv.dnsmasq" >> /etc/dnsmasq.conf
-echo "addn-hosts=/etc/dnsmasqhosts" >> /etc/dnsmasq.conf
+echo 'resolv-file=/etc/resolv.dnsmasq' >> /etc/dnsmasq.conf
+echo 'addn-hosts=/etc/dnsmasqhosts' >> /etc/dnsmasq.conf
 
 ## 启动
-/bin/systemctl start dnsmasq.service
-/bin/systemctl enable dnsmasq.service
-systemctl status dnsmasq
-/bin/systemctl restart dnsmasq.service
-
-if [ $? == 0 ];then
-  echo -e "\033[32m [INFO]: dnsmasq install success. \033[0m"
-else
-  echo -e "\033[31m [ERROR]: dnsmasq install faild \033[0m"
-  exit -6
-fi
+startService dnsmasq
 }
 
 
 function install_codo(){
-  #安装前端
-
-  echo -e "\033[32m [INFO]: codo(项目前端) Start install. \033[0m"
-  source /opt/codo/env.sh
-  CODO_VER="codo-beta-0.3.2"
-  rm -rf /var/www/codo-*
-  if ! which wget &>/dev/null; then yum install -y wget >/dev/null 2>&1;fi
-  [ ! -d /var/www ] && mkdir -p /var/www
-  cd /var/www && wget https://github.com/opendevops-cn/codo/releases/download/${CODO_VER}/${CODO_VER}.tar.gz
-  tar zxf ${CODO_VER}.tar.gz
-  if [ $? == 0 ];then
-      echo -e "\033[32m [INFO]: codo(项目前端) install success. \033[0m"
-  else
-      echo -e "\033[31m [ERROR]: codo(项目前端) install faild \033[0m"
-      exit -8
-  fi
+#安装前端
+INFO 'codo(项目前端) Start install.'
+source /opt/codo/env.sh
+CODO_VER="codo-beta-0.3.2"
+rm -rf /var/www/codo-*
+hash wget || yum_install wget
+[ ! -d /var/www ] && mkdir -p /var/www
+cd /var/www && wget https://github.com/opendevops-cn/codo/releases/download/${CODO_VER}/${CODO_VER}.tar.gz
+INFOF 'install codo(项目前端)      ......'
+tar zxf ${CODO_VER}.tar.gz
+[ $? -eq 0 ] && OK || FAIL
 }
 
 
 function install_api_gw(){
-echo -e "\033[32m [INFO]: API网关 Start install. \033[0m"
+INFO 'API网关 Start install.'
 source /opt/codo/env.sh
 #安装openresty
-yum install yum-utils -y
+yum_install yum-utils
 yum-config-manager --add-repo https://openresty.org/package/centos/openresty.repo
-yum install openresty -y
-yum install openresty-resty -y
+yum_install openresty
+yum_install openresty-resty
 cd /opt/codo/ && git clone https://github.com/ss1917/api-gateway.git
-\cp -arp api-gateway/* /usr/local/openresty/nginx/
+cp -arp api-gateway/* /usr/local/openresty/nginx/
 sudo tee /usr/local/openresty/nginx/conf/nginx.conf <<-'EOF'
 user root;
 worker_processes auto;
@@ -673,7 +744,7 @@ http {
 }
 EOF
 source /opt/codo/env.sh
-sed  -i "s#10.10.10.12#$LOCALHOST_IP#g" /usr/local/openresty/nginx/conf/nginx.conf
+sed -i "s#10.10.10.12#$LOCALHOST_IP#g" /usr/local/openresty/nginx/conf/nginx.conf
 sudo tee /usr/local/openresty/nginx/conf/conf.d/gw.conf <<-'EOF'
 server {
     listen 80;
@@ -828,10 +899,9 @@ rewrite_conf = {
 EOF
 mkdir -p /var/log/nginx/ && touch /var/log/nginx/f_access.log
 openresty -t   #测试
-systemctl start openresty
-systemctl enable openresty
-systemctl status openresty
-if [ $? -eq 0 ]; then echo -e "\033[32m [INFO]: 网关部署完成. \033[0m"; else echo -e "\033[31m [ERROR]: 网关部署完成失败 \033[0m" && exit -6; fi
+INFOF '部署网关      ......'
+startService openresty
+[ $? -eq 0 ] && OK || FAIL
 }
 
 #定义函数结束
@@ -846,7 +916,7 @@ cd /opt/codo/
 #校验IP
 LOCAL_IP=$1
 check_ip $LOCAL_IP
-[ $? != 0 ] && echo "请输入格式正确的内网IP" && exit -1
+[ $? -ne 0 ] && ERROR "请输入格式正确的内网IP" && exit -1
 
 # 基础环境python3/docker/docker-compose--> 初始化env--> 下载项目配置--> 修改项目配置--> 创库语句--> 多项目docker-compose--> docker-compose启动多项目--> 初始化多项目数据--> 部署DNS内部通信--> 部署前端--> 部署网关--> 访问
 
@@ -864,15 +934,14 @@ export -f install_codo
 export -f install_api_gw
 
 
-[ -f /usr/local/bin/python3 ] && echo -e "\033[33m [Warning]: Python3 already exists,Skip installation \033[0m"  || install_python3
-[ -f /usr/local/bin/docker-compose ] && echo -e "\033[33m [Warning]: Docker-compose already exists,Skip installation \033[0m"  || install_docker_compose
+[ -f /usr/local/bin/python3 ] && WARM 'Python3 already exists,Skip installation'  || install_python3
+[ -f /usr/local/bin/docker-compose ] && WARM 'Docker-compose already exists,Skip installation' || install_docker_compose
 init_env && download_settings && update_settings && mysql_database_file && docker_compose_file && docker_compose_up && init_mysql && install_dnsmasq
-[ -f /var/www/codo/index.html ] && echo -e "\033[33m [Warning]: 项目前端:/var/www/codo/ already exists,Skip installation \033[0m"  || install_codo
+[ -f /var/www/codo/index.html ] && WARM '项目前端:/var/www/codo/ already exists,Skip installation'  || install_codo
 install_api_gw
-echo -e "\033[32m [INFO]: 你的访问地址：http://demo.opendevops.cn  \033[0m"
-echo -e "\033[32m [INFO]: 你的访问用户：admin  \033[0m"
-echo -e "\033[32m [INFO]: 你的访问密码：admin@opendevops  \033[0m"
-echo -e "\033[32m [INFO]: 请在你的PC机器上绑定本地Host进行登陆测试  \033[0m"
-echo -e "\033[32m [INFO]: 你的MySQL/Redis/MQ等密码请在/opt/codo/env.sh找到  \033[0m"
-echo -e "\033[32m [INFO]: 日志目录：/var/log/supervisor/, 详细可查看日志log是否有报错。 \033[0m"
-
+INFO '你的访问地址：http://demo.opendevops.cn'
+INFO '你的访问用户：admin'
+INFO '你的访问密码：admin@opendevops'
+INFO '请在你的PC机器上绑定本地Host进行登陆测试'
+INFO '你的MySQL/Redis/MQ等密码请在/opt/codo/env.sh找到'
+INFO '日志目录：/var/log/supervisor/, 详细可查看日志log是否有报错。'
